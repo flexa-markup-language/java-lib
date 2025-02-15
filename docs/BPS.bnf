@@ -1,0 +1,5 @@
+<start>     ::= <statement> EOF
+<statement> ::= <key> | EPSILON
+<key>       ::= KEY ":" <value> ";" <statement>
+<value>     ::= "[" <array> | VALUE
+<array>     ::= <value> "," <array> | "]"

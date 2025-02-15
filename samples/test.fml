@@ -1,0 +1,11 @@
+string:"string";
+char:'c';
+int:10;
+float:0.5;
+boolTrue:true;
+boolFalse:false;
+stringArr:["yes","no","maybe"];
+intArr:[0,1,2,10,-5];
+floatArr:[0.9,1.7,0.2,1.06,-5.618];
+boolArr:[true,false,true];
+multArr2:[[0,1,2],[0,1,2],[0,1,2]];
