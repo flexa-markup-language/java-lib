@@ -10,32 +10,29 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class Lexer {
-
-    private static List<Token> tokens;
+    private static final List<Token> tokens = new ArrayList<>();
 
     // Control variables
-    private static String input;
-    private static char curChar;
-    private static int curIndex;
-    private static int curLine;
-    private static int curColumn;
+    private final String input;
+    private char prevChar;
+    private char currChar;
+    private char nextChar;
+    private int prevIndex = -2;
+    private int currIndex = -1;
+    private int nextIndex = 0;
+    private int currLine = 1;
+    private int currColumn = 1;
 
-    private static void init() {
-        tokens = new ArrayList<>();
-        curIndex = 0;
-        curLine = 1;
-        curColumn = 1;
+    public Lexer(String input) {
+        this.input = input;
     }
 
-    public static List<Token> tokenize(String input) {
-        init();
-        Lexer.input = input;
-
+    public List<Token> tokenize() {
         nextChar();
         while (notEndOfInput()) {
             // Skip whitespace and newlines
-            if (Symbols.isSkip(curChar)) {
-                if (curChar == Symbols.NEWLINE) {
+            if (Symbols.isSkip(currChar)) {
+                if (currChar == Symbols.NEWLINE) {
                     nextLine();
                 }
                 nextChar();
@@ -43,130 +40,131 @@ public final class Lexer {
             }
 
             // Skip comments
-            if (curChar == Symbols.HASH) {
-                while (notEndOfInput() && curChar != Symbols.NEWLINE) {
+            if (currChar == Symbols.HASH) {
+                while (notEndOfInput() && currChar != Symbols.NEWLINE) {
                     nextChar();
                 }
                 nextLine();
                 nextChar();
             }
             // Key, boolean, or null
-            else if (Character.isLetter(curChar) || curChar == Symbols.UNDERSCORE) {
-                StringBuilder lexeme = new StringBuilder(String.valueOf(curChar));
-                var initCol = curColumn;
+            else if (Character.isLetter(currChar) || currChar == Symbols.UNDERSCORE) {
+                StringBuilder lexeme = new StringBuilder(String.valueOf(currChar));
+                var initCol = currColumn;
                 nextChar();
 
-                // Loop through the key
-                while (notEndOfInput() && curChar != Symbols.COLON && (curChar == Symbols.UNDERSCORE || Character.isLetterOrDigit(curChar))) {
-                    lexeme.append(curChar);
+                // Loop through the current lexeme
+                while (notEndOfInput()
+                        && ((currChar != Symbols.COLON && currChar != Symbols.SEMICOLON) || prevChar == '\\')
+                        && !((lexeme.toString().equals("true") || lexeme.toString().equals("false")
+                            || lexeme.toString().equals("null") && currChar == Symbols.COMMA))) {
+                    lexeme.append(currChar);
                     nextChar();
                 }
 
                 // Boolean
                 if (lexeme.toString().equals("true") || lexeme.toString().equals("false")) {
-                    tokens.add(new Token(TokenCategory.BOOL, lexeme.toString(), curLine, initCol));
+                    tokens.add(new Token(TokenCategory.BOOL, lexeme.toString(), currLine, initCol));
                 }
                 // Null
                 else if (lexeme.toString().equals("null")) {
-                    tokens.add(new Token(TokenCategory.NULL, lexeme.toString(), curLine, initCol));
+                    tokens.add(new Token(TokenCategory.NULL, lexeme.toString(), currLine, initCol));
                 }
                 // Key
                 else {
-                    tokens.add(new Token(TokenCategory.KEY, lexeme.toString(), curLine, initCol));
+                    tokens.add(new Token(TokenCategory.KEY, lexeme.toString(), currLine, initCol));
                 }
             }
             // Open array
-            else if (curChar == Symbols.LEFT_BRACKETS) {
-                tokens.add(new Token(TokenCategory.OPEN_ARRAY, String.valueOf(curChar), curLine, curColumn));
+            else if (currChar == Symbols.LEFT_BRACKETS) {
+                tokens.add(new Token(TokenCategory.OPEN_ARRAY, String.valueOf(currChar), currLine, currColumn));
                 nextChar();
             }
             // Close array
-            else if (curChar == Symbols.RIGHT_BRACKETS) {
-                tokens.add(new Token(TokenCategory.CLOSE_ARRAY, String.valueOf(curChar), curLine, curColumn));
+            else if (currChar == Symbols.RIGHT_BRACKETS) {
+                tokens.add(new Token(TokenCategory.CLOSE_ARRAY, String.valueOf(currChar), currLine, currColumn));
                 nextChar();
             }
             // End of data
-            else if (curChar == Symbols.SEMICOLON) {
-                tokens.add(new Token(TokenCategory.END_OF_DATA, String.valueOf(curChar), curLine, curColumn));
+            else if (currChar == Symbols.SEMICOLON) {
+                tokens.add(new Token(TokenCategory.END_OF_DATA, String.valueOf(currChar), currLine, currColumn));
                 nextChar();
             }
             // Array separator
-            else if (curChar == Symbols.COMMA) {
-                tokens.add(new Token(TokenCategory.ARRAY_SEP, String.valueOf(curChar), curLine, curColumn));
+            else if (currChar == Symbols.COMMA) {
+                tokens.add(new Token(TokenCategory.ARRAY_SEP, String.valueOf(currChar), currLine, currColumn));
                 nextChar();
             }
             // Data separator
-            else if (curChar == Symbols.COLON) {
-                tokens.add(new Token(TokenCategory.DATA_SEP, String.valueOf(curChar), curLine, curColumn));
+            else if (currChar == Symbols.COLON) {
+                tokens.add(new Token(TokenCategory.DATA_SEP, String.valueOf(currChar), currLine, currColumn));
                 nextChar();
             }
             // String
-            else if (curChar == Symbols.D_QUOTE) {
-                StringBuilder lexeme = new StringBuilder(String.valueOf(curChar));
-                var initCol = curColumn;
-                var beforeChar = curChar;
+            else if (currChar == Symbols.D_QUOTE) {
+                StringBuilder lexeme = new StringBuilder(String.valueOf(currChar));
+                var initCol = currColumn;
                 nextChar();
-                while (notEndOfInput() && (curChar != Symbols.D_QUOTE || beforeChar == '\\')) {
-                    if (curChar != '\\' || beforeChar == '\\') {
-                        lexeme.append(curChar);
+                while (notEndOfInput() && (currChar != Symbols.D_QUOTE || prevChar == '\\')) {
+                    if (currChar != '\\' || prevChar == '\\') {
+                        lexeme.append(currChar);
                     }
-                    beforeChar = curChar;
                     nextChar();
                 }
-                if (curChar != Symbols.D_QUOTE) {
-                    throw new RuntimeException("String was not closed at line " + curLine + " and column " + curColumn + ".");
+                if (currChar != Symbols.D_QUOTE) {
+                    throw new RuntimeException("String was not closed at line " + currLine + " and column " + currColumn + ".");
                 }
-                lexeme.append(curChar);
-                tokens.add(new Token(TokenCategory.STRING, lexeme.toString(), curLine, initCol));
+                lexeme.append(currChar);
+                tokens.add(new Token(TokenCategory.STRING, lexeme.toString(), currLine, initCol));
                 nextChar();
             }
             // Char
-            else if (curChar == Symbols.QUOTE) {
-                var lexeme = String.valueOf(curChar);
-                var initCol = curColumn;
+            else if (currChar == Symbols.QUOTE) {
+                var lexeme = String.valueOf(currChar);
+                var initCol = currColumn;
                 nextChar();
-                if (curChar == '\\') {
-                    lexeme += curChar;
+                if (currChar == '\\') {
+                    lexeme += currChar;
                     nextChar();
                 }
-                lexeme += curChar;
+                lexeme += currChar;
                 nextChar();
-                if (curChar != Symbols.QUOTE) {
-                    throw new RuntimeException("Char was not closed at line " + curLine + " and column " + curColumn + ".");
+                if (currChar != Symbols.QUOTE) {
+                    throw new RuntimeException("Char was not closed at line " + currLine + " and column " + currColumn + ".");
                 }
-                lexeme += curChar;
-                tokens.add(new Token(TokenCategory.CHAR, lexeme, curLine, initCol));
+                lexeme += currChar;
+                tokens.add(new Token(TokenCategory.CHAR, lexeme, currLine, initCol));
                 nextChar();
             }
             // Numeric
-            else if (Character.isDigit(curChar) || curChar == Symbols.DOT || curChar == Symbols.MINUS) {
-                StringBuilder lexeme = new StringBuilder(String.valueOf(curChar));
-                var initCol = curColumn;
-                var dotted = curChar == Symbols.DOT;
+            else if (Character.isDigit(currChar) || currChar == Symbols.DOT || currChar == Symbols.MINUS) {
+                StringBuilder lexeme = new StringBuilder(String.valueOf(currChar));
+                var initCol = currColumn;
+                var dotted = currChar == Symbols.DOT;
                 nextChar();
-                while (notEndOfInput() && (Character.isDigit(curChar) || curChar == Symbols.DOT)) {
-                    if (curChar == Symbols.DOT) {
+                while (notEndOfInput() && (Character.isDigit(currChar) || currChar == Symbols.DOT)) {
+                    if (currChar == Symbols.DOT) {
                         if (dotted) {
-                            throw new RuntimeException("Invalid character '" + curChar + "' encountered at line " + curLine + " and column " + curColumn + ".");
+                            throw new RuntimeException("Invalid character '" + currChar + "' encountered at line " + currLine + " and column " + currColumn + ".");
                         } else {
                             dotted = true;
                         }
                     }
-                    lexeme.append(curChar);
+                    lexeme.append(currChar);
                     nextChar();
                 }
-                if (Character.toLowerCase(curChar) == 'f') {
-                    lexeme.append(curChar);
+                if (Character.toLowerCase(currChar) == 'f') {
+                    lexeme.append(currChar);
                     nextChar();
                 }
                 // Float or integer
                 if (lexeme.toString().contains(String.valueOf(Symbols.DOT)) || lexeme.toString().toLowerCase().contains("f")) {
-                    tokens.add(new Token(TokenCategory.FLOAT, lexeme.toString(), curLine, initCol));
+                    tokens.add(new Token(TokenCategory.FLOAT, lexeme.toString(), currLine, initCol));
                 } else {
-                    tokens.add(new Token(TokenCategory.INTEGER, lexeme.toString(), curLine, initCol));
+                    tokens.add(new Token(TokenCategory.INTEGER, lexeme.toString(), currLine, initCol));
                 }
             } else {
-                throw new RuntimeException("Invalid character '" + curChar + "' encountered at line " + curLine + " and column " + curColumn + ".");
+                throw new RuntimeException("Invalid character '" + currChar + "' encountered at line " + currLine + " and column " + currColumn + ".");
             }
         }
 
@@ -175,25 +173,25 @@ public final class Lexer {
         return tokens;
     }
 
-    private static boolean notEndOfInput() {
-        return curIndex <= input.length();
+    private boolean notEndOfInput() {
+        return currIndex < input.length();
     }
 
-    private static void nextLine() {
-        curLine++;
-        curColumn = 0;
+    private void nextLine() {
+        ++currLine;
+        currColumn = 0;
     }
 
-    private static void nextChar() {
-        if (curIndex < input.length()) {
-            curChar = input.charAt(curIndex);
-            curColumn++;
+    private void nextChar() {
+        ++prevIndex;
+        ++currIndex;
+        ++nextIndex;
+        if (currIndex < input.length()) {
+            prevChar = prevIndex >= 0 ? input.charAt(prevIndex) : '\0';
+            currChar = input.charAt(currIndex);
+            nextChar = nextIndex < input.length() ? input.charAt(nextIndex) : '\0';
+            currColumn++;
         }
-        curIndex++;
     }
 
-    // avoid instantiation
-    private Lexer() {
-        throw new UnsupportedOperationException("Utility class");
-    }
 }

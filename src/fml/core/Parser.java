@@ -42,7 +42,7 @@ public final class Parser {
 
     public Map<String, Object> parse() {
         if (!isSubValue) {
-            tokens = Lexer.tokenize(data);
+            tokens = new Lexer(data).tokenize();
         }
         start();
         return parsedData;
