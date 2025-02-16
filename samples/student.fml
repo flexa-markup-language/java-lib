@@ -1,0 +1,8 @@
+name:"John Doe";
+age:30;
+isStudent:false;
+grades:{9.5,8.0,7.5};
+address:
+    street:"road";
+    number:666;
+;
